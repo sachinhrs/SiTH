@@ -260,8 +260,10 @@ def main(args):
 
             body_loss = (torch.norm(body_kps - joint_3d[0, body_idx, :2], dim=1) * conf_body_kps).mean(dim=0)
 
-            hand_loss = (torch.norm(lhand_kps - joint_3d[0, lhand_idx, :2], dim=1) * conf_lhand_kps).mean(dim=0) + \\
-                        (torch.norm(rhand_kps - joint_3d[0, rhand_idx, :2], dim=1) * conf_rhand_kps).mean(dim=0) 
+            hand_loss = (
+                (torch.norm(lhand_kps - joint_3d[0, lhand_idx, :2], dim=1) * conf_lhand_kps).mean(dim=0)
+                + (torch.norm(rhand_kps - joint_3d[0, rhand_idx, :2], dim=1) * conf_rhand_kps).mean(dim=0)
+            )
             
             face_loss = (torch.norm(face_kps - joint_3d[0, face_idx, :2], dim=1) * conf_face_kps).mean(dim=0)
 
@@ -292,12 +294,14 @@ def main(args):
 
             # Weighted sum of the losses
             smpl_loss = 0.0
-            smpl_loss += body_loss * BODY_LOSS_WEIGHT + \\
-                         hand_loss * HAND_LOSS_WEIGHT + \\
-                         face_loss * FACE_LOSS_WEIGHT + \\
-                         leg_loss * LEG_LOSS_WEIGHT + \\
-                         mask_loss * MASK_LOSS_WEIGHT + \\
-                         reg_loss
+            smpl_loss = (
+                body_loss * BODY_LOSS_WEIGHT
+                + hand_loss * HAND_LOSS_WEIGHT
+                + face_loss * FACE_LOSS_WEIGHT
+                + leg_loss * LEG_LOSS_WEIGHT
+                + mask_loss * MASK_LOSS_WEIGHT
+                + reg_loss
+            )
             
             pbar_desc = "Body Fitting -- "
             pbar_desc += f"scale: {opt_scale.item():.3f} | x: {opt_offset_x.item():.3f} | y: {opt_offset_y.item():.3f} | "
