@@ -11,6 +11,7 @@ import numpy as np
 from smplx import SMPLX
 from PIL import Image
 from tqdm import tqdm
+import pickle
 
 import torch
 import torchvision.transforms as transforms
@@ -259,7 +260,7 @@ def main(args):
 
             body_loss = (torch.norm(body_kps - joint_3d[0, body_idx, :2], dim=1) * conf_body_kps).mean(dim=0)
 
-            hand_loss = (torch.norm(lhand_kps - joint_3d[0, lhand_idx, :2], dim=1) * conf_lhand_kps).mean(dim=0) + \
+            hand_loss = (torch.norm(lhand_kps - joint_3d[0, lhand_idx, :2], dim=1) * conf_lhand_kps).mean(dim=0) + \\
                         (torch.norm(rhand_kps - joint_3d[0, rhand_idx, :2], dim=1) * conf_rhand_kps).mean(dim=0) 
             
             face_loss = (torch.norm(face_kps - joint_3d[0, face_idx, :2], dim=1) * conf_face_kps).mean(dim=0)
@@ -291,11 +292,11 @@ def main(args):
 
             # Weighted sum of the losses
             smpl_loss = 0.0
-            smpl_loss += body_loss * BODY_LOSS_WEIGHT + \
-                         hand_loss * HAND_LOSS_WEIGHT + \
-                         face_loss * FACE_LOSS_WEIGHT + \
-                         leg_loss * LEG_LOSS_WEIGHT + \
-                         mask_loss * MASK_LOSS_WEIGHT + \
+            smpl_loss += body_loss * BODY_LOSS_WEIGHT + \\
+                         hand_loss * HAND_LOSS_WEIGHT + \\
+                         face_loss * FACE_LOSS_WEIGHT + \\
+                         leg_loss * LEG_LOSS_WEIGHT + \\
+                         mask_loss * MASK_LOSS_WEIGHT + \\
                          reg_loss
             
             pbar_desc = "Body Fitting -- "
@@ -316,6 +317,31 @@ def main(args):
         # Finish the optimization, save the results
         d = trimesh.Trimesh(vertices=V[0].detach().cpu().numpy(),faces=F.cpu().numpy())
         d.export(os.path.join(args.output_path, f'{file_name}_smplx.obj'))
+        
+       
+        # Build THuman-style SMPL-X param dict
+        smplx_params = {
+            'betas': opt_betas.reshape(1, -1).detach().cpu().numpy(),          # (1, 10)
+            'body_pose': full_pose.reshape(1, -1).detach().cpu().numpy(),      # (1, 21*3)
+            'global_orient': opt_global_orient.reshape(1, -1).detach().cpu().numpy(),  # (1, 3)
+            'left_hand_pose': param_left_hand_pose.reshape(1, -1).cpu().numpy(),
+            'right_hand_pose': param_right_hand_pose.reshape(1, -1).cpu().numpy(),
+            'jaw_pose': param_jaw_pose.reshape(1, -1).cpu().numpy(),
+            'expression': param_expression.reshape(1, -1).cpu().numpy(),
+            'leye_pose': np.zeros((1, 3), dtype=np.float32),
+            'reye_pose': np.zeros((1, 3), dtype=np.float32),
+        }
+        
+        tt = -J_0[:, 0, :] + torch.cat(
+            [opt_offset_x, opt_offset_y, torch.zeros(1, device=device)],
+            dim=0
+        )
+        smplx_params['translation'] = tt.reshape(1, -1).detach().cpu().numpy()
+        smplx_params['scale'] = opt_scale.detach().cpu().numpy().reshape(1, -1)
+        
+        pkl_path = os.path.join(args.output_path, f'{file_name}_smplx_param.pkl')
+        with open(pkl_path, 'wb') as f:
+            pickle.dump(smplx_params, f)
 
         if args.debug:
 
@@ -369,4 +395,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
